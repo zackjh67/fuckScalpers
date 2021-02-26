@@ -84,7 +84,7 @@ function now() {
   const browser = await puppeteer.launch({ headless: false });
 
   // open up chromium instances for each sku to watch
-  await keach(watchTheseSkus, async (sku) => {
+  _.each(watchTheseSkus, async (sku) => {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 1024 });
     const destUrl = buildSkuUrl(sku);
@@ -132,7 +132,12 @@ function now() {
           console.log(`sku ${sku} waiting 10 seconds`);
           // TODO add modifier to 10 second so it seems less bott-ey and predictable
           await ktimeout(10000);
-          await page.reload(destUrl);
+          if (outOfStock) {
+            // refresh page if out of stock otherwise quit and wait for human
+            await page.reload(destUrl);
+          } else {
+            shouldRun = false;
+          }
         }
   });
 
