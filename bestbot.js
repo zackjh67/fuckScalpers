@@ -5,7 +5,7 @@ const exec = require('await-exec');
 
 // TODO build similar sku checker bot that finds new skus with certain search filter, say 3080/3090
 const knownSkus = [];
-const watchTheseSkus = [6429434, 6418599];
+const watchTheseSkus = [6429434, 6432447, 6432445, 6429440];
 
 const addToCartBtnSelector = 'add-to-cart-button';
 const inStockSelector = "btn-primary";
@@ -65,8 +65,17 @@ function now() {
   const browser = await puppeteer.launch({ headless: false });
 
   // open up chromium instances for each sku to watch
-  _.each(watchTheseSkus, async (sku) => {
+  _.each(watchTheseSkus, async (sku, i) => {
+    if (i !== 0) {
+      // TODO this actually staggers but not by the right amount?
+      // stagger calls 7 seconds in between so bestbuy doesn't freak out
+      const seconds = 7000 * i;
+      console.log(`sku ${sku} waiting ${seconds/1000} seconds to start executing`);
+      await ktimeout(7000 * i);
+    }
+
     const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(0);
     await page.setViewport({ width: 1280, height: 1024 });
     const destUrl = buildSkuUrl(sku);
 
@@ -86,7 +95,7 @@ function now() {
 
           const inStock = _.find(buttonClasses, e => e === inStockSelector);
           if (inStock) {
-            console.log(`sku ${sku} in stock at: %o`, now());
+            console.log(`$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ sku ${sku} in stock at: %o $$$$$$$$$$$$$$$$$$$$$$$$$$$$$`, now());
             cartButton.click();
             await exec(
               buildAlertzy(sku, 'Add to cart button clicked!')
