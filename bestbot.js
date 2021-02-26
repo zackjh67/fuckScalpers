@@ -5,7 +5,9 @@ const exec = require('await-exec');
 
 // TODO build similar sku checker bot that finds new skus with certain search filter, say 3080/3090
 const knownSkus = [];
-const watchTheseSkus = [6429434, 6432447, 6432445, 6429440];
+
+// bestbuy uses sku numbers to identify products
+const watchTheseSkus = [/*6429434, 6432447, 6432445, 6429440,*/ 6439000];
 
 const addToCartBtnSelector = 'add-to-cart-button';
 const inStockSelector = "btn-primary";
@@ -79,8 +81,35 @@ async function doCheck(shouldRun, page, sku, destUrl) {
       if (inStock) {
         console.log(`$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ sku ${sku} in stock at: %o $$$$$$$$$$$$$$$$$$$$$$$$$$$$$`, now());
         cartButton.click();
+
+        // IMPORTANT: bestbuy has this new queue thing to deter botters for certain items.
+        // It has you wait until the button turns yellow again to actually click and add to your cart
+        // Since I don't feel like figuring out when that happens, for now, this just checks if it is a special queue page or not, and lets
+        // the user know that their action is required (click the button again when it turns yellow to actually add to cart)
+
+        // wait 1 sec to let the message pop up
+        await ktimeout(1000);
+        const queueMessagePopupList = await page.$$(`.${'wait-overlay'}`);
+        if (queueMessagePopupList.length) {
+          const queueMessagePopup = queueMessagePopupList[0];
+          const msgHeight = (await page.evaluate(e => e.clientHeight, queueMessagePopup));
+          // queue message has popped up. let user know they have to watch the button until it yellows
+          if (msgHeight !== 0) {
+            console.log(`sku ${sku} is special bby queue`);
+            await exec(
+              buildAlertzy(sku, 'Special queue alert! Must go manually click the button when yellow')
+            );
+            // I'm not sure if this message is present yet just hidden on every page, so if thats true and its
+            // actually not a special queue item, things should functional normally even if the message is present but minimized
+          } else {
+            await exec(
+              buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!')
+            );
+          }
+        }
+
         await exec(
-          buildAlertzy(sku, 'Add to cart button clicked!')
+          buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!')
         );
       }
 
@@ -110,6 +139,7 @@ async function doCheck(shouldRun, page, sku, destUrl) {
         shouldRun = false;
       }
     } catch(e) {
+      shouldRun = false;
       console.log('fuckin error!!!: %o', e);
       await exec(
         buildAlertzy(sku, `Error! ${e.toString()}`)
