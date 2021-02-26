@@ -8,7 +8,7 @@ const exec = require('await-exec');
 const thirty80List = 'https://www.bestbuy.com/site/computer-cards-components/video-graphics-cards/abcat0507002.c?id=abcat0507002&qp=gpusv_facet%3DGraphics%20Processing%20Unit%20(GPU)~NVIDIA%20GeForce%20RTX%203080';
 const thirty90List = 'https://www.bestbuy.com/site/computer-cards-components/video-graphics-cards/abcat0507002.c?id=abcat0507002&qp=gpusv_facet%3DGraphics%20Processing%20Unit%20(GPU)~NVIDIA%20GeForce%20RTX%203090';
 const knownSkus = [];
-const watchTheseSkus = [6429434];
+const watchTheseSkus = [6429434, 6418599];
 
 const addToCartBtnSelector = 'add-to-cart-button';
 const normalCartBtnSelector = "btn-primary add-to-cart-button";
@@ -87,10 +87,11 @@ function now() {
   await keach(watchTheseSkus, async (sku) => {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 1024 });
+    const destUrl = buildSkuUrl(sku);
 
     // TODO write these to a log eventually i guesss
         console.log(`Pinging SKU: ${sku}\n`);
-        await page.goto(buildSkuUrl(sku));
+        await page.goto(destUrl);
 
         // TODO read a key to stop this or something??
         let shouldRun = true;
@@ -129,7 +130,9 @@ function now() {
 
           // wait 10 seconds then refresh
           console.log(`sku ${sku} waiting 10 seconds`);
+          // TODO add modifier to 10 second so it seems less bott-ey and predictable
           await ktimeout(10000);
+          await page.reload(destUrl);
         }
   });
 
