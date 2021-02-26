@@ -90,7 +90,6 @@ async function doCheck(shouldRun, page, sku, destUrl) {
         // wait 1 sec to let the message pop up
         await ktimeout(1000);
         const queueMessagePopupList = await page.$$(`.wait-overlay`);
-        console.log(`SKU ${sku} queue message popup list!!!!!!: %o`, queueMessagePopupList);
         if (queueMessagePopupList.length) {
           const queueMessagePopup = queueMessagePopupList[0];
           const msgHeight = await page.evaluate(e => e.clientHeight, queueMessagePopup);
