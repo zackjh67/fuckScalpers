@@ -1,20 +1,19 @@
-
 const fs = require('fs');
 const puppeteer = require('puppeteer');
 const _ = require('lodash');
 const exec = require('await-exec');
-// const csvStringify = require('csv-stringify/lib/sync');
 
-const thirty80List = 'https://www.bestbuy.com/site/computer-cards-components/video-graphics-cards/abcat0507002.c?id=abcat0507002&qp=gpusv_facet%3DGraphics%20Processing%20Unit%20(GPU)~NVIDIA%20GeForce%20RTX%203080';
-const thirty90List = 'https://www.bestbuy.com/site/computer-cards-components/video-graphics-cards/abcat0507002.c?id=abcat0507002&qp=gpusv_facet%3DGraphics%20Processing%20Unit%20(GPU)~NVIDIA%20GeForce%20RTX%203090';
+// TODO build similar sku checker bot that finds new skus with certain search filter, say 3080/3090
 const knownSkus = [];
 const watchTheseSkus = [6429434, 6418599];
 
 const addToCartBtnSelector = 'add-to-cart-button';
-const normalCartBtnSelector = "btn-primary add-to-cart-button";
-const soldOutCartBtnSelector = "btn-disabled add-to-cart-button";
+const inStockSelector = "btn-primary";
+const outOfStockSelector = "btn-disabled";
 
 const alertzyAccountKey = 'givjzq9zxy419a8';
+
+const refreshInterval = 10000;
 
 function buildAlertzy(title, message) {
   return `curl -s --form-string "accountKey=${alertzyAccountKey}" --form-string "title=${machineTitle}: ${title}" --form-string "message=${message}" https://alertzy.app/send
@@ -22,8 +21,6 @@ function buildAlertzy(title, message) {
 }
 
 const machineTitle = 'Surface Book';
-
-
 
 function buildSkuUrl(sku) {
   return `https://www.bestbuy.com/site/searchpage.jsp?st=${sku}`;
@@ -51,22 +48,6 @@ async function keach(collection, fn) {
 function ktimeout(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
-
-
-function buildUrl(postalCode, radius, workPerformed, marketSegments) {
-  return `http://code.metalocator.com/index.php?user_lat=0&user_lng=0&postal_code=${postalCode}&radius=${radius}&keyword=&workperformed=${encodeURIComponent(workPerformed)}&marketsegments=${encodeURIComponent(marketSegments)}&Itemid=2147&view=directory&layout=combined&tmpl=component&framed=1&parent_table=&parent_id=0&task=search_zip&search_type=point&_opt_out=&option=com_locator&ml_location_override=`;
-}
-
-/********************
- * Get workPerformedList
- await page.goto('http://code.metalocator.com/index.php?user_lat=0&user_lng=0&postal_code=49504&radius=10&keyword=&workperformed=Duct%20%26%20System%20Cleaning&marketsegments=Design+%2F+Build&Itemid=2147&view=directory&layout=combined&tmpl=component&framed=1&parent_table=&parent_id=0&task=search_zip&search_type=point&_opt_out=&option=com_locator&ml_location_override=');
- var workPerformedList = await page.$("#workperformed");
- var options = await workPerformedList.$$('option');
- await keach(options, async (option) => {
-      var results = (await page.evaluate(e => e.textContent, option));
-      console.log(results);
-  });
- ****************/
 
 function now() {
   const currentDate = new Date();
@@ -103,7 +84,7 @@ function now() {
           console.log(`sku ${sku} waiting 2 seconds`);
           await ktimeout(2000);
 
-          const inStock = _.find(buttonClasses, e => e === 'btn-primary');
+          const inStock = _.find(buttonClasses, e => e === inStockSelector);
           if (inStock) {
             console.log(`sku ${sku} in stock at: %o`, now());
             cartButton.click();
@@ -112,7 +93,7 @@ function now() {
             );
           }
 
-          const outOfStock = _.find(buttonClasses, e => e === 'btn-disabled');
+          const outOfStock = _.find(buttonClasses, e => e === outOfStockSelector);
           if (outOfStock) {
             console.log(`sku ${sku} Out of stock at: %o`, now());
             // await exec(
@@ -129,8 +110,8 @@ function now() {
 
           // wait 10 seconds then refresh
           console.log(`sku ${sku} waiting 10 seconds`);
-          // TODO add modifier to 10 second so it seems less bott-ey and predictable
-          await ktimeout(10000);
+          // TODO add random seconds modifier to refreshinterval second so it seems less bott-ey and predictable
+          await ktimeout(refreshInterval);
           if (outOfStock) {
             // refresh page if out of stock otherwise quit and wait for human
             await page.reload(destUrl);
