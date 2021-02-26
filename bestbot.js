@@ -7,7 +7,7 @@ const exec = require('await-exec');
 const knownSkus = [];
 
 // bestbuy uses sku numbers to identify products
-const watchTheseSkus = [/*6429434, 6432447, 6432445, 6429440,*/ 6439000];
+const watchTheseSkus = [/*6429434, 6432447, 6432445, 6429440,*/ 6429440, 6413832, 6439000];
 
 const addToCartBtnSelector = 'add-to-cart-button';
 const inStockSelector = "btn-primary";
@@ -74,7 +74,7 @@ async function doCheck(shouldRun, page, sku, destUrl) {
       const buttonClasses = (await page.evaluate(e => e.classList, cartButton));
 
       // wait 2 seconds for shit to load
-      console.log(`sku ${sku} waiting 2 seconds`);
+      console.log(`sku ${sku} waiting 2 seconds for full page load`);
       await ktimeout(2000);
 
       const inStock = _.find(buttonClasses, e => e === inStockSelector);
@@ -89,10 +89,11 @@ async function doCheck(shouldRun, page, sku, destUrl) {
 
         // wait 1 sec to let the message pop up
         await ktimeout(1000);
-        const queueMessagePopupList = await page.$$(`.${'wait-overlay'}`);
+        const queueMessagePopupList = await page.$$(`.wait-overlay`);
+        console.log(`SKU ${sku} queue message popup list!!!!!!: %o`, queueMessagePopupList);
         if (queueMessagePopupList.length) {
           const queueMessagePopup = queueMessagePopupList[0];
-          const msgHeight = (await page.evaluate(e => e.clientHeight, queueMessagePopup));
+          const msgHeight = await page.evaluate(e => e.clientHeight, queueMessagePopup);
           // queue message has popped up. let user know they have to watch the button until it yellows
           if (msgHeight !== 0) {
             console.log(`sku ${sku} is special bby queue`);
@@ -106,11 +107,11 @@ async function doCheck(shouldRun, page, sku, destUrl) {
               buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!')
             );
           }
+        } else {
+          await exec(
+            buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!')
+          );
         }
-
-        await exec(
-          buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!')
-        );
       }
 
       const outOfStock = _.find(buttonClasses, e => e === outOfStockSelector);
@@ -129,7 +130,7 @@ async function doCheck(shouldRun, page, sku, destUrl) {
       }
 
       // wait 10 seconds then refresh
-      console.log(`sku ${sku} waiting 10 seconds`);
+      console.log(`sku ${sku} waiting 10 seconds to refresh`);
       // TODO add random seconds modifier to refreshinterval second so it seems less bott-ey and predictable
       await ktimeout(refreshInterval);
       if (outOfStock) {
