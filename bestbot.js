@@ -93,7 +93,6 @@ function now() {
         console.log(`Pinging SKU: ${sku}\n`);
         await page.goto(destUrl);
 
-        // TODO read a key to stop this or something??
         let shouldRun = true;
 
         while(shouldRun) {
