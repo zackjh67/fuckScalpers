@@ -2,6 +2,7 @@
 const fs = require('fs');
 const puppeteer = require('puppeteer');
 const _ = require('lodash');
+const exec = require('await-exec');
 // const csvStringify = require('csv-stringify/lib/sync');
 
 const thirty80List = 'https://www.bestbuy.com/site/computer-cards-components/video-graphics-cards/abcat0507002.c?id=abcat0507002&qp=gpusv_facet%3DGraphics%20Processing%20Unit%20(GPU)~NVIDIA%20GeForce%20RTX%203080';
@@ -12,6 +13,16 @@ const watchTheseSkus = [6429434];
 const addToCartBtnSelector = 'add-to-cart-button';
 const normalCartBtnSelector = "btn-primary add-to-cart-button";
 const soldOutCartBtnSelector = "btn-disabled add-to-cart-button";
+
+const alertzyAccountKey = 'givjzq9zxy419a8';
+
+function buildAlertzy(title, message) {
+  return `curl -s --form-string "accountKey=${alertzyAccountKey}" --form-string "title=${machineTitle}: ${title}" --form-string "message=${message}" https://alertzy.app/send
+`
+}
+
+const machineTitle = 'Surface Book';
+
 
 
 function buildSkuUrl(sku) {
@@ -77,6 +88,7 @@ function now() {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 1024 });
 
+    // TODO write these to a log eventually i guesss
         console.log(`Pinging SKU: ${sku}\n`);
         await page.goto(buildSkuUrl(sku));
 
@@ -88,66 +100,44 @@ function now() {
           const buttonClasses = (await page.evaluate(e => e.classList, cartButton));
 
           // wait 2 seconds for shit to load
-          console.log('waiting 2 seconds');
+          console.log(`sku ${sku} waiting 2 seconds`);
           await ktimeout(2000);
 
           const inStock = _.find(buttonClasses, e => e === 'btn-primary');
           if (inStock) {
-            console.log('in stock at: %o', now());
+            console.log(`sku ${sku} in stock at: %o`, now());
             cartButton.click();
-            // TODO ping push notifications letting me know which computer this is on
+            await exec(
+              buildAlertzy(sku, 'Add to cart button clicked!')
+            );
           }
 
           const outOfStock = _.find(buttonClasses, e => e === 'btn-disabled');
           if (outOfStock) {
-            console.log('Out of stock at: %o', now());
+            console.log(`sku ${sku} Out of stock at: %o`, now());
+            // await exec(
+            //   buildAlertzy(sku, 'out of fucking stock lol')
+            // );
           }
 
           if (!outOfStock && !inStock) {
-            console.log('irregular button found!: %o', buttonClasses);
-            // TODO ping with push notifications on phone also which PC
+            console.log(`sku ${sku} irregular button found!: %o`, buttonClasses);
+            await exec(
+              buildAlertzy(sku, 'Irregular button found!')
+            );
           }
 
           // wait 10 seconds then refresh
-          console.log('waiting 10 seconds)');
+          console.log(`sku ${sku} waiting 10 seconds`);
           await ktimeout(10000);
         }
-
-    // const records = await resultWrapper.$$('.com_locator_entry');
-        // await keach(records, async (record) => {
-        //
-        //   const companyName = await record.$('.com_locator_title');
-        //   const address1 = await record.$('.address');
-        //   const address2 = await record.$('.address2');
-        //   const city = await record.$('.city');
-        //   const zip = await record.$('.postalcode');
-        //   const phone = await record.$('.phone');
-        //   const website = await record.$('.link');
-        //
-        //   const parsedRecord = {
-        //     companyName: companyName ? (await page.evaluate(e => e.textContent, companyName)).trim() : 'null',
-        //     address1: address1 ? (await page.evaluate(e => e.textContent, address1)) : 'null',
-        //     address2: address2 ? (await page.evaluate(e => e.textContent, address2)) : 'null',
-        //     city: city ? (await page.evaluate(e => e.textContent, city)) : 'null',
-        //     zip: zip ? (await page.evaluate(e => e.textContent, zip)) : 'null',
-        //     phone: phone ? (await page.evaluate(e => e.textContent, phone)) : 'null',
-        //     email: 'null',
-        //     website: website ? (await page.evaluate(e => e.textContent, website)) : 'null',
-        //     service: workPerformed,
-        //     marketSegment: marketSegment,
-        //   };
-        //   outputRecords.push(parsedRecord);
-        // });
-    //   });
-    // });
-
-    // await fs.writeFile("out.csv", csvStringify(outputRecords, {header:true}));
   });
 
   console.log('fuckin done');
 })();
 
 // error if u cant add to ur cart
+// i think this was actually caused by a fucking popup blocker
 /*
 * <div class="c-alert c-alert-level-danger"><div class="c-alert-icon"><i><svg aria-hidden="true" role="img" viewBox="0 0 100 100" fill="#fff" height="24" width="24"><use href="/~assets/bby/_img/int/plsvgdef-frontend/svg/alert-octagon.svg#alert-octagon" xlink:href="/~assets/bby/_img/int/plsvgdef-frontend/svg/alert-octagon.svg#alert-octagon"></use></svg><span class="sr-only" tabindex="-1">Error</span></i></div><div class="c-alert-content"><p>There was a problem adding your product to cart.</p></div></div>
 *
