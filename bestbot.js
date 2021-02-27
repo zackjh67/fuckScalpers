@@ -7,7 +7,7 @@ const exec = require('await-exec');
 const knownSkus = [];
 
 // bestbuy uses sku numbers to identify products
-const watchTheseSkus = [/*6429434, 6432447, 6432445, 6429440,*/ 6429440, 6413832, 6439000];
+const watchTheseSkus = [6430175, 6436219, 6429434, 6432447, 6432446];
 
 const addToCartBtnSelector = 'add-to-cart-button';
 const inStockSelector = "btn-primary";
@@ -19,9 +19,9 @@ const alertzyAccountKey = '';
 
 const refreshInterval = 10000;
 
-function buildAlertzy(title, message) {
+function buildAlertzy(title, message, link, priority) {
   if (!alertzyAccountKey.length) return 'echo Alertzy not set up';
-  return `curl -s --form-string "accountKey=${alertzyAccountKey}" --form-string "title=${machineTitle}: ${title}" --form-string "message=${message}" https://alertzy.app/send
+  return `curl -s --form-string "priority=${priority || 0}" --form-string "group=BestBuy" --form-string "accountKey=${alertzyAccountKey}" --form-string "title=${machineTitle}: ${title}" --form-string "message=${message}" ${(link && '--form-string "link=' + link + '"') || ''} https://alertzy.app/send
 `
 }
 
@@ -97,18 +97,18 @@ async function doCheck(shouldRun, page, sku, destUrl) {
           if (msgHeight !== 0) {
             console.log(`sku ${sku} is special bby queue`);
             await exec(
-              buildAlertzy(sku, 'Special queue alert! Must go manually click the button when yellow')
+              buildAlertzy(sku, 'Special queue alert! Must go manually click the button when yellow', destUrl, 2)
             );
             // I'm not sure if this message is present yet just hidden on every page, so if thats true and its
             // actually not a special queue item, things should functional normally even if the message is present but minimized
           } else {
             await exec(
-              buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!')
+              buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!', destUrl, 2)
             );
           }
         } else {
           await exec(
-            buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!')
+            buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!', destUrl, 2)
           );
         }
       }
@@ -124,7 +124,7 @@ async function doCheck(shouldRun, page, sku, destUrl) {
       if (!outOfStock && !inStock) {
         console.log(`sku ${sku} irregular button found!: %o`, buttonClasses);
         await exec(
-          buildAlertzy(sku, 'Irregular button found!')
+          buildAlertzy(sku, 'Irregular button found!', destUrl, 2)
         );
       }
 
@@ -142,7 +142,7 @@ async function doCheck(shouldRun, page, sku, destUrl) {
       shouldRun = false;
       console.log('fuckin error!!!: %o', e);
       await exec(
-        buildAlertzy(sku, `Error! ${e.toString()}`)
+        buildAlertzy(sku, `Error! ${e.toString()}`, destUrl)
       );
     }
   }
