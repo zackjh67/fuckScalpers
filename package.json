@@ -9,8 +9,9 @@
   "dependencies": {
     "await-exec": "^0.1.2",
     "bluebird": "^3.7.2",
+    "eev": "^0.1.5",
     "lodash": "^4.17.21",
-    "puppeteer": "^1.11.0"
+    "puppeteer": "^8.0.0"
   },
   "keywords": [],
   "author": "",
