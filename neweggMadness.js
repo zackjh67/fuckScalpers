@@ -2,6 +2,9 @@ const fs = require('fs');
 const puppeteer = require('puppeteer');
 const _ = require('lodash');
 const exec = require('await-exec');
+const yargs = require('yargs/yargs');
+const { hideBin } = require('yargs/helpers');
+const argv = yargs(hideBin(process.argv)).argv;
 
 // TODO build similar sku checker bot that finds newly listed products with certain search filter, say 3080/3090
 const knownProducts = [];
@@ -57,9 +60,11 @@ const alertzyAccountKey = '';
 
 const refreshInterval = 13000;
 
-function buildAlertzy(title, message) {
+
+
+function buildAlertzy(title, message, link, priority) {
   if (!alertzyAccountKey.length) return 'echo Alertzy not set up';
-  return `curl -s --form-string "accountKey=${alertzyAccountKey}" --form-string "title=${machineTitle}: ${title}" --form-string "message=${message}" https://alertzy.app/send
+  return `curl -s --form-string "priority=${priority || 0}" --form-string "group=Newegg" --form-string "accountKey=${alertzyAccountKey}" --form-string "title=${machineTitle}: ${title}" --form-string "message=${message}" ${(link && '--form-string "link=' + link + '"') || ''} https://alertzy.app/send
 `
 }
 
@@ -285,45 +290,158 @@ async function doCheck(shouldRun, page, destUrl, initialStagger) {
 // TODO kill these shitty racy variables when u can lol
 let go = false;
 let someoneElseCheckingOut = false;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// the new bot lol im so lazy
+let staggerTime = argv.stagger * 1000 || 0;
+let botNum = argv.botNum;
+let keepRunning = true;
+let gpuListHref = 'https://www.newegg.com/p/pl?N=100007709%20601357248%20601357247%2050001402%2050001312%2050001315%2050001314%204814%20601303642%20601183677';
+const itemSelector = '.item-info';
+const itemLinkSelector = '.item-title';
+const promoSelector = '.item-promo';
 (async () => {
+  console.log(`YAR! I BE BOT ${botNum}`);
+
+  // stagger time so we can have checks at different times for diff bots
+  console.log(`staggering for ${staggerTime/1000} seconds`);
+  await ktimeout(staggerTime);
+
+
   const browser = await puppeteer.launch({ headless: false });
+  const page = await browser.newPage();
+  await page.setDefaultNavigationTimeout(0);
+  await page.setViewport({ width: 1280, height: 1024 });
+  await page.goto(gpuListHref);
+  let lastNumItems;
+
+  // flagged for VPN I think. lets wait a min incase i have to do captcha
+  // await ktimeout(60000);
+
+  while(keepRunning) {
+    try{
+      const items = await page.$$(itemSelector);
+      lastNumItems = items.length;
+      if (!items.length) {
+        if (lastNumItems === 0) {
+          console.log('no items after refresh still. something is wrong');
+          await exec(
+              buildAlertzy('Newegg ERROR', `Bot ${botNum} had error ${e.toString()}`, undefined, 0)
+          );
+          keepRunning = false;
+        } else {
+          // lets refresh and see if that helps things
+          await page.reload(gpuListHref);
+        }
+      } else {
+        await keach(items, async (item) => {
+          const titleContainer = (await item.$$(itemLinkSelector))[0]
+          const itemHref = await page.evaluate(anchor => anchor.getAttribute('href'), titleContainer);
+          const itemDescription = await page.evaluate(el => el.innerText, titleContainer);
+          if (!itemHref) {
+            console.log('no href? we have a problem.');
+            await exec(
+                buildAlertzy('Newegg ERROR (No Href)', `Error at ${now()} sry check the logs`, undefined, 0)
+            );
+          }
+          const promoContainers = await item.$$(promoSelector);
+          let inStock = true;
+          await keach(promoContainers, async (pc) => {
+            const containerTxt = await page.evaluate(el => el.innerText, pc);
+            if (containerTxt.toUpperCase() === 'OUT OF STOCK') {
+              inStock = false;
+            }
+          });
+          if (inStock && itemHref) {
+            console.log(`item ${itemDescription} in stock!!!`);
+            await exec(
+                buildAlertzy(`IN STOCK: ${itemDescription}`, `Bot ${botNum} found this in stock at ${now()}`, itemHref, 2)
+            );
+          }
+        })
+      }
+
+      // wait 2 mins and then refresh
+      const randomMs = Math.floor(Math.random() * 2500);
+      await ktimeout(120000 + randomMs);
+      await page.reload(gpuListHref);
+    } catch(e) {
+      console.log(`${now()} ################################ fuckin error!!!: %o`, e);
+      await exec(
+          buildAlertzy('Newegg ERROR', `Error at ${now()} sry check the logs`, undefined, 0)
+      );
+      keepRunning = false;
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // give me a minute to sign in and then click the fucking masks checkbox omg
-  await ktimeout(90000);
-
-  // open up chromium instances for each sku to watch
-  keach(productsToWatch, async (href, i) => {
-    let staggerSeconds = 3000 * i;
-    if (i !== 0) {
-      console.log(`${href} waiting ${staggerSeconds/1000} seconds to start executing`);
-      await ktimeout(staggerSeconds);
-    }
-
-    const page = await browser.newPage();
-    await page.setDefaultNavigationTimeout(0);
-    await page.setViewport({ width: 1280, height: 1024 });
-    const destUrl = href;
-
-    // TODO write these to a log eventually i guesss
-    console.log(`Pinging item: ${href}\n`);
-    await page.goto(destUrl);
-
-    let shouldRun = true;
-    doCheck(shouldRun, page, href, staggerSeconds);
-
-    // we need all the pages loaded and functions running to accurately detect signals so wait for that to happen to
-    // start everything off
-    if (i === productsToWatch.length - 1) {
-      console.log(`######## NOTICE ######### all pages loaded. Start checking every ${staggerSeconds/1000} seconds!`);
-      go = true;
-      // (async function start() {
-      //   console.log('inside async and starting??');
-      //   controllerEev.emit('start', {
-      //     stagger: staggerSeconds,
-      //   });
-      // })();
-    }
-  });
+  // await ktimeout(90000);
+  //
+  // // open up chromium instances for each sku to watch
+  // keach(productsToWatch, async (href, i) => {
+  //   let staggerSeconds = 3000 * i;
+  //   if (i !== 0) {
+  //     console.log(`${href} waiting ${staggerSeconds/1000} seconds to start executing`);
+  //     await ktimeout(staggerSeconds);
+  //   }
+  //
+  //   const page = await browser.newPage();
+  //   await page.setDefaultNavigationTimeout(0);
+  //   await page.setViewport({ width: 1280, height: 1024 });
+  //   const destUrl = href;
+  //
+  //   // TODO write these to a log eventually i guesss
+  //   console.log(`Pinging item: ${href}\n`);
+  //   await page.goto(destUrl);
+  //
+  //   let shouldRun = true;
+  //   doCheck(shouldRun, page, href, staggerSeconds);
+  //
+  //   // we need all the pages loaded and functions running to accurately detect signals so wait for that to happen to
+  //   // start everything off
+  //   if (i === productsToWatch.length - 1) {
+  //     console.log(`######## NOTICE ######### all pages loaded. Start checking every ${staggerSeconds/1000} seconds!`);
+  //     go = true;
+  //     // (async function start() {
+  //     //   console.log('inside async and starting??');
+  //     //   controllerEev.emit('start', {
+  //     //     stagger: staggerSeconds,
+  //     //   });
+  //     // })();
+  //   }
+  // });
 
   console.log('fuckin done');
 })();
