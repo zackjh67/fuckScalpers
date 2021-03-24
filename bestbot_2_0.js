@@ -18,17 +18,23 @@ const outOfStockSelector = "btn-disabled";
 const ownerAlertzyAccountKey = '';
 const ccAlertzyAccountKeys = [''];
 
+const wirePusherId = '';
+
 const refreshInterval = 10000;
 
 function buildAlertzy(title, message, link, priority, target = 'owner') {
   let alertzyAccountKey = ownerAlertzyAccountKey;
   if (target === 'all') {
     alertzyAccountKey = alertzyAccountKey.concat('_', ccAlertzyAccountKeys.join('_'));
-    console.log('sending to all!!!!!: %o', alertzyAccountKey);
   }
   if (!alertzyAccountKey.length) return 'echo Alertzy not set up';
   return `curl -s --form-string "priority=${priority || 0}" --form-string "group=BestBuy" --form-string "accountKey=${alertzyAccountKey}" --form-string "title=${machineTitle}: ${title}" --form-string "message=${message}" ${(link && '--form-string "link=' + link + '"') || ''} https://alertzy.app/send
 `
+}
+
+function buildWirepush(title, message, link, type) {
+  if (!wirePusherId.length) return 'echo WIREPUSHER not set up';
+  return `curl -s --form-string "id=${wirePusherId}" --form-string "title=${machineTitle}: ${title}" --form-string "message=${message}" --form-string "type=${type}" --form-string "action=${link}" https://wirepusher.com/send`;
 }
 
 const machineTitle = 'Macbook';
@@ -97,6 +103,9 @@ async function doCheck(shouldRun, page, sku, destUrl) {
         await exec(
           buildAlertzy(sku, '!!! IN STOCK !!!.', destUrl, 2, 'all')
         );
+        await exec(
+          buildWirepush(sku, '!!! IN STOCK !!!.', destUrl, 'IN STOCK')
+        );
 
         await cartButton.click();
 
@@ -114,59 +123,78 @@ async function doCheck(shouldRun, page, sku, destUrl) {
           const msgHeight = await page.evaluate(e => e.clientHeight, queueMessagePopup);
           // queue message has popped up. let user know they have to watch the button until it yellows
           if (msgHeight !== 0) {
-            // TODO wait for the shit to turn yellow again theen click and nav right to cart and click the checkout button
             console.log(`sku ${sku} is special bby queue`);
-            // await exec(
-            //   buildAlertzy(sku, 'Special queue alert! Must go manually click the button when yellow', destUrl, 2)
-            // );
 
-            const yellowAgain = await page.exposeFunction('onCustomEvent', async text => {
+            await page.exposeFunction('onCustomEvent', async text => {
               if (text == -1) {
                 await cartButton.click();
                 await page.goto('https://www.bestbuy.com/cart');
-                const checkoutButton = await page.$('.btn btn-lg.btn-block.btn-primary');
-                if (checkoutButton) {
-                  await checkoutButton.click();
-                  const guestBtn = await page.$('.cia-guest-content__continue');
-                  if (guestBtn) {
-                    console.log('################################ !!!!!!!!!!!!!!!!!!!!!!!!!! MADE IT TO CHECKOUT SCREEN !!!!!!!!!!!!!!!!!');
+
+                // Check for CHECKOUT button
+                try {
+                  await page.waitForSelector('.btn.btn-lg.btn-block.btn-primary');
+                  (await page.$('.btn.btn-lg.btn-block.btn-primary')).click();
+
+                  // check for GUEST button so we know we made it to checkout
+                  try {
+                    await page.waitForSelector('.cia-guest-content__continue');
+                      console.log('################################ !!!!!!!!!!!!!!!!!!!!!!!!!! MADE IT TO CHECKOUT SCREEN !!!!!!!!!!!!!!!!!');
+                      await exec(
+                        buildAlertzy(sku, '!!! AT CHECKOUT SCREEN YOU HAVE 1 HOUR !!!.', destUrl, 2)
+                      );
+                      await exec(
+                        buildWirepush(sku, '!!! AT CHECKOUT SCREEN YOU HAVE 1 HOUR !!!.', destUrl, 'IN CHECKOUT')
+                      );
+                      console.log('waiting 1 hour to potentially checkout!');
+                      await ktimeout(3600000);
+
+                  } catch (e) {
+                    if (e instanceof puppeteer.errors.TimeoutError) {
+                      // Do something if this is a timeout.
+                      console.log('################################not quick enough to checkout i guess');
+                      await exec(
+                        buildAlertzy(sku, 'FUCK not able to CHECKOUT in time. Trying again when in stock.', destUrl, 0)
+                      );
+                      await exec(
+                        buildWirepush(sku, 'FUCK not able to CHECKOUT in time. Trying again when in stock.', destUrl, 'TOO SLOW')
+                      );
+                    }
+                  }
+
+                } catch (e) {
+                  if (e instanceof puppeteer.errors.TimeoutError) {
+                    // Do something if this is a timeout.
+                    console.log('################################ didnt add to cart in time');
                     await exec(
-                      buildAlertzy(sku, '!!! AT CHECKOUT SCREEN YOU HAVE 1 HOUR !!!.', destUrl, 2)
+                      buildAlertzy(sku, 'FUCK not able to ADD TO CART in time. Trying again when in stock.', destUrl, 0)
                     );
-                    console.log('waiting 1 hour to potentially checkout!');
-                    await ktimeout(3600000);
-                  } else {
-                    console.log('################################not quick enough to checkout i guess');
                     await exec(
-                      buildAlertzy(sku, 'FUCK not able to CHECKOUT in time. Trying again when in stock.', destUrl, 0)
+                      buildWirepush(sku, 'FUCK not able to ADD TO CART in time. Trying again when in stock.', destUrl, 'TOO SLOW')
                     );
                   }
-                } else {
-                  console.log('####################################DIDNT ADD TO CART IN TIME');
-                  await exec(
-                    buildAlertzy(sku, 'FUCK not able to ADD TO CART in time. Trying again when in stock.', destUrl, 0)
-                  );
                 }
               }
             });
             await page.evaluate(() => {
               $('head').bind("DOMSubtreeModified", function(e) {
-                window.onCustomEvent(e.currentTarget.textContent.trim().toString().search('.add-to-cart-button.btn-primary'));
+                window.onCustomEvent(e.currentTarget.textContent.trim().toString().search('.add-to-cart-button'));
               });
             });
             // I'm not sure if this message is present yet just hidden on every page, so if thats true and its
             // actually not a special queue item, things should functional normally even if the message is present but minimized
           } else {
-            await exec(
-              // TODO nav right to cart and click the checkout button
-              buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!', destUrl, 2)
-            );
+            console.log('add to cart button clicked, not special case, this might just not be working like this though');
+            // await exec(
+            //   // TODO nav right to cart and click the checkout button
+            //   buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!', destUrl, 2)
+            // );
           }
         } else {
+          console.log('add to cart button clicked, not special case, this might just not be working like this though');
           // TODO nav right to cart and click the checkout button
-          await exec(
-            buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!', destUrl, 2)
-          );
+          // await exec(
+          //   buildAlertzy(sku, 'Add to cart button clicked. Time to checkout!', destUrl, 2)
+          // );
         }
       }
 
