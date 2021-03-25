@@ -233,6 +233,7 @@ async function doCheck(shouldRun, page, destUrl, initialStagger) {
             });
 
             // do it all again for the other button lol
+            // do it all again for the other button lol
             await ktimeout(2500);
             paymentButtons = await page.$$('.checkout-step-action-done');
 
@@ -309,7 +310,7 @@ let staggerTime = argv.stagger * 1000 || 0;
 let machine = argv.machine;
 let botNum = argv.botNum
 let keepRunning = true;
-let destUrl = 'https://www.newegg.com/lg-oled-cx-65/p/16C-000P-004G1?Item=16C-000P-004G1';
+let destUrl = argv.url;
 (async () => {
 
   // stagger time so we can have checks at different times for diff bots
@@ -321,11 +322,12 @@ let destUrl = 'https://www.newegg.com/lg-oled-cx-65/p/16C-000P-004G1?Item=16C-00
   const page = await browser.newPage();
   await page.setDefaultNavigationTimeout(0);
   await page.setViewport({ width: 1366, height: 768 });
+  await page.setCacheEnabled(false);
   await page.goto(destUrl);
 
   // wait 2 mins for possible captcha
   // await ktimeout(120000);
-
+while(true) {
   try {
     const cartButtonArr = await page.$$(`${addToCartBtnSelector}`);
 
@@ -365,13 +367,12 @@ let destUrl = 'https://www.newegg.com/lg-oled-cx-65/p/16C-000P-004G1?Item=16C-00
       }
 
 
-
       if (isNew && isNewEgg) {
         // send STOP signal so we don't buy a shitload of cards at once
         console.log(`$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ${destUrl} in stock at: %o $$$$$$$$$$$$$$$$$$$$$$$$$$$$$`, now());
         const cartButton = cartButtonArr[0];
         // TODO attempt checkout process here. If it fails a manual restart may be needed I'm not sure.
-        try{
+        try {
           // wait a bit to click so it doesn't think ur a bot i guess
           // await ktimeout(2000);
           await cartButton.click();
@@ -456,7 +457,7 @@ let destUrl = 'https://www.newegg.com/lg-oled-cx-65/p/16C-000P-004G1?Item=16C-00
           // shouldRun = false;
           // TODO kind of shitty but just wait for a finishing checkout thing lol
           await ktimeout(6000000);
-        } catch(e) {
+        } catch (e) {
           buildAlertzy('NEWEGG checkout failed', `${destUrl} with ERROR ${e.toString()}`);
           // if the checkout failed, restart everyone, else hold
           someoneElseCheckingOut = false;
@@ -475,13 +476,14 @@ let destUrl = 'https://www.newegg.com/lg-oled-cx-65/p/16C-000P-004G1?Item=16C-00
     } else {
       shouldRun = false;
     }
-  } catch(e) {
+  } catch (e) {
     shouldRun = false;
     console.log('fuckin error!!!: %o', e);
     await exec(
       buildAlertzy(destUrl, `Error! ${e.toString()}`)
     );
   }
+}
 
   console.log('fuckin done');
 })();
