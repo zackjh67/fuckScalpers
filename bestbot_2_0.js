@@ -7,7 +7,7 @@ const exec = require('await-exec');
 const knownSkus = [];
 
 // bestbuy uses sku numbers to identify products
-const watchTheseSkus = [6439000/*, 6429440*//*, 6439299*/];
+const watchTheseSkus = [/*6439000*/6429440, 6439299];
 
 const addToCartBtnSelector = 'add-to-cart-button';
 const inStockSelector = "btn-primary";
@@ -272,7 +272,7 @@ async function doCheck(shouldRun, page, sku, destUrl) {
 
     // TODO this actually causes a memory leak lol
     let shouldRun = true;
-    await doCheck(shouldRun, page, sku, destUrl);
+    doCheck(shouldRun, page, sku, destUrl);
   });
 
   console.log('fuckin done');
